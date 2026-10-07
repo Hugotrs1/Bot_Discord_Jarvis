@@ -1,4 +1,3 @@
-import sys
-from pathlib import Path
+import os
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+os.environ["DB_PATH"] = ":memory:"  # les tests utilisent une base temporaire en mémoire

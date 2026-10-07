@@ -1,10 +1,7 @@
 services:
   jarvis:
     build: .
-    container_name: jarvis
     env_file: .env
     restart: unless-stopped
     volumes:
-      - ./data:/app/data
-    # Pour que /status mesure la machine hôte plutôt que le conteneur (Linux uniquement) :
-    # pid: host
+      - ./data:/app/data   # la base de données reste sur ta machine

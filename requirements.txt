@@ -1,6 +1,5 @@
-discord.py>=2.4,<3
+discord.py>=2.4
 aiohttp>=3.9
-aiosqlite>=0.20
 beautifulsoup4>=4.12
 matplotlib>=3.8
 psutil>=5.9
