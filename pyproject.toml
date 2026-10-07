@@ -1,0 +1,17 @@
+[project]
+name = "jarvis-bot"
+version = "0.1.0"
+description = "Bot Discord d'assistance personnelle : rappels, to-do, briefing, budget, suivi de prix, monitoring, liste de lecture."
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
