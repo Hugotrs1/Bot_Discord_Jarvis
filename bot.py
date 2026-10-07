@@ -1,4 +1,10 @@
-"""Jarvis, mon assistant Discord. Lancement : python bot.py"""
+"""Jarvis, mon assistant Discord.
+
+Lancement : python bot.py
+
+Chaque fonctionnalité est dans son propre fichier du dossier cogs/ (un « cog » est un
+module de discord.py qui regroupe des commandes et des tâches automatiques).
+"""
 
 import logging
 
@@ -7,39 +13,50 @@ from discord.ext import commands
 
 import config
 
-# Chaque fonctionnalité est dans son propre fichier du dossier cogs/
 MODULES = [
-    "cogs.reminders",
-    "cogs.todo",
-    "cogs.briefing",
-    "cogs.budget",
-    "cogs.prices",
-    "cogs.monitoring",
-    "cogs.reading_list",
+    "cogs.reminders",      # /rappel
+    "cogs.todo",           # /todo
+    "cogs.briefing",       # /brief + briefing automatique du matin
+    "cogs.budget",         # /depense, /revenu, /budget
+    "cogs.prices",         # /prix
+    "cogs.monitoring",     # /status, /site
+    "cogs.reading_list",   # /alire + liens envoyés par l'extension navigateur
 ]
+
+log = logging.getLogger("jarvis")
 
 
 class Jarvis(commands.Bot):
     async def setup_hook(self):
+        """Appelé une fois au démarrage, avant la connexion à Discord."""
         for module in MODULES:
             await self.load_extension(module)
+            log.info("Module chargé : %s", module)
 
-        # Enregistre les commandes slash sur ton serveur (elles apparaissent tout de suite)
-        server = discord.Object(id=config.GUILD_ID)
-        self.tree.copy_global_to(guild=server)
-        await self.tree.sync(guild=server)
+        if config.GUILD_ID:
+            # Commandes enregistrées sur ton serveur uniquement : elles apparaissent immédiatement
+            server = discord.Object(id=config.GUILD_ID)
+            self.tree.copy_global_to(guild=server)
+            synced = await self.tree.sync(guild=server)
+        else:
+            # Commandes globales : peuvent mettre jusqu'à une heure à apparaître
+            synced = await self.tree.sync()
+        log.info("%d commandes slash enregistrées", len(synced))
 
 
 intents = discord.Intents.default()
-intents.message_content = True  # pour lire les liens postés par l'extension navigateur
+intents.message_content = True  # nécessaire pour lire les liens postés par l'extension navigateur
 bot = Jarvis(command_prefix="!", intents=intents)
 
 
-async def only_owner(interaction):
-    """Refuse les commandes de toute autre personne que toi."""
-    if interaction.user.id == config.OWNER_ID:
+async def only_owner(interaction: discord.Interaction) -> bool:
+    """Vérification faite avant chaque commande.
+
+    Si OWNER_ID est défini dans .env, seul le propriétaire peut utiliser le bot.
+    """
+    if not config.OWNER_ID or interaction.user.id == config.OWNER_ID:
         return True
-    await interaction.response.send_message("🔒 Ce bot est privé.", ephemeral=True)
+    await interaction.response.send_message("🔒 Ce bot est réservé à son propriétaire.", ephemeral=True)
     return False
 
 
@@ -47,15 +64,23 @@ bot.tree.interaction_check = only_owner
 
 
 @bot.tree.error
-async def on_command_error(interaction, error):
-    """Les ValueError sont des erreurs de saisie (date incomprise…) : on affiche le message tel quel."""
-    error = getattr(error, "original", error)
-    if isinstance(error, ValueError):
-        message = f"❌ {error}"
-    else:
-        logging.exception("Erreur dans une commande", exc_info=error)
-        message = "💥 Une erreur est survenue (voir les logs du bot)."
+async def on_command_error(interaction: discord.Interaction, error: Exception):
+    """Appelé quand une commande plante.
 
+    Dans tout le bot, une ValueError signifie « erreur de saisie » (date incomprise,
+    montant invalide…) : on affiche son message à l'utilisateur. Les autres erreurs
+    sont des bugs : on les note dans les logs.
+    """
+    # discord.py emballe l'erreur d'origine dans une autre : on la récupère
+    original_error = getattr(error, "original", error)
+
+    if isinstance(original_error, ValueError):
+        message = f"❌ {original_error}"
+    else:
+        log.exception("Erreur dans une commande", exc_info=original_error)
+        message = "💥 Oups, une erreur interne est survenue (détails dans les logs du bot)."
+
+    # Si la commande a déjà répondu (ou demandé un délai), on doit envoyer un « followup »
     if interaction.response.is_done():
         await interaction.followup.send(message, ephemeral=True)
     else:
@@ -64,10 +89,11 @@ async def on_command_error(interaction, error):
 
 @bot.event
 async def on_ready():
-    print(f"✅ Connecté en tant que {bot.user}")
+    log.info("✅ Connecté en tant que %s", bot.user)
 
 
 if __name__ == "__main__":
     if not config.TOKEN:
         raise SystemExit("DISCORD_TOKEN manquant : copie .env.example en .env et remplis-le.")
-    bot.run(config.TOKEN)
+    discord.utils.setup_logging(level=logging.INFO)  # affiche les messages dans le terminal
+    bot.run(config.TOKEN, log_handler=None)
