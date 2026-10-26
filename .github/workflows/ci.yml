@@ -25,3 +25,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t jarvis-bot .
+
+  # Si les tests passent sur main, le serveur récupère le code et relance le bot.
+  # La clé DEPLOY_SSH_KEY ne peut rien faire d'autre (voir /srv/scripts/deploy-receive.sh sur le serveur).
+  deploy:
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency: deploy
+    steps:
+      - name: Mise à jour sur hugotrs.fr
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          echo "hugotrs.fr ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF7AzFQ2qszF2tfgkRkDlrHOVfZape64Ilxl40zpxSMb" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy hugo@hugotrs.fr "app jarvis-bot"
